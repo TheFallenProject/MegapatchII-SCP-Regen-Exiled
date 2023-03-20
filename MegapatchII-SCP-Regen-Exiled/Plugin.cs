@@ -32,7 +32,6 @@ namespace MegapatchII_SCP_Regen_Exiled
         {
             try
             {
-                ServerConsole.AddLog($"[SCPHeal] left. {ev.Player.GetUserId()}");
                 playerHealingThreads[ev.Player.GetUserId()].Cancel();
                 playerHealingThreads.Remove(ev.Player.GetUserId());
             }
@@ -41,13 +40,31 @@ namespace MegapatchII_SCP_Regen_Exiled
 
         private void ClassUpdate(EXILED.SetClassEvent ev)
         {
-            ServerConsole.AddLog($"[SCPHeal] role change. {ev.Player.GetUserId()} to {ev.Role} (is scp: {ev.Role.IsAnyScp()})");
             if (ev.Role.IsAnyScp())
             {
-                var cts = new CancellationTokenSource();
-                var thrd = new Thread(() => SCPHealingCoroutine(ev.Player, cts.Token));
-                thrd.Start();
-                playerHealingThreads.Add(ev.Player.GetUserId(), cts);
+                try
+                {
+                    var cts = new CancellationTokenSource();
+                    playerHealingThreads.Add(ev.Player.GetUserId(), cts);
+                    var thrd = new Thread(() => SCPHealingCoroutine(ev.Player, cts.Token));
+                    thrd.Start();
+                }
+                catch
+                {
+
+                }
+            }
+            else
+            {
+                try
+                {
+                    playerHealingThreads[ev.Player.GetUserId()].Cancel();
+                    playerHealingThreads.Remove(ev.Player.GetUserId());
+                }
+                catch
+                {
+
+                }
             }
         }
 
@@ -59,7 +76,6 @@ namespace MegapatchII_SCP_Regen_Exiled
 
         private async Task SCPHealingCoroutine(ReferenceHub pl, CancellationToken cancellationToken)
         {
-            ServerConsole.AddLog("[SCPHeal] coroutine started");
             try
             {
                 bool didPlayerMoveLastOpportunity = false;
@@ -71,16 +87,13 @@ namespace MegapatchII_SCP_Regen_Exiled
                     await Task.Delay(10000);
                     if (cancellationToken.IsCancellationRequested)
                     {
-                        ServerConsole.AddLog("[SCPHeal] calcellation requested");
                         return;
                     }
 
                     newpos = pl.GetPosition();
-                    ServerConsole.AddLog($"heal att started. vals: pos same => {newpos == oldpos}, newpos => {newpos}, oldpos => {oldpos}");
 
                     if (newpos == oldpos)
                     {
-                        ServerConsole.AddLog($"isSCP? {pl.GetRole().IsAnyScp()} ({pl.GetRole()})");
                         if (pl.GetRole().IsAnyScp())
                         {
                             switch (pl.GetRole())
