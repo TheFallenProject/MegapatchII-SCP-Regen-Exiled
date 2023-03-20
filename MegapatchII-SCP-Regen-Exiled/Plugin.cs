@@ -13,7 +13,7 @@ namespace MegapatchII_SCP_Regen_Exiled
     {
         public override string getName => "TFP-SCP-Heal-MP2";
 
-        private Dictionary<string, Thread> playerHealingThreads = new Dictionary<string, Thread>();
+        private Dictionary<string, CancellationTokenSource> playerHealingThreads = new Dictionary<string, CancellationTokenSource>();
 
         public override void OnDisable()
         {
@@ -33,7 +33,7 @@ namespace MegapatchII_SCP_Regen_Exiled
             try
             {
                 ServerConsole.AddLog($"[SCPHeal] left. {ev.Player.GetUserId()}");
-                playerHealingThreads[ev.Player.GetUserId()].Interrupt();
+                playerHealingThreads[ev.Player.GetUserId()].Cancel();
                 playerHealingThreads.Remove(ev.Player.GetUserId());
             }
             catch { }
@@ -44,9 +44,10 @@ namespace MegapatchII_SCP_Regen_Exiled
             ServerConsole.AddLog($"[SCPHeal] role change. {ev.Player.GetUserId()} to {ev.Role} (is scp: {ev.Role.IsAnyScp()})");
             if (ev.Role.IsAnyScp())
             {
-                var thrd = new Thread(() => SCPHealingCoroutine(ev.Player));
+                var cts = new CancellationTokenSource();
+                var thrd = new Thread(() => SCPHealingCoroutine(ev.Player, cts.Token));
                 thrd.Start();
-                playerHealingThreads.Add(ev.Player.GetUserId(), thrd);
+                playerHealingThreads.Add(ev.Player.GetUserId(), cts);
             }
         }
 
@@ -56,7 +57,7 @@ namespace MegapatchII_SCP_Regen_Exiled
             OnEnable();
         }
 
-        private async Task SCPHealingCoroutine(ReferenceHub pl)
+        private async Task SCPHealingCoroutine(ReferenceHub pl, CancellationToken cancellationToken)
         {
             ServerConsole.AddLog("[SCPHeal] coroutine started");
             try
@@ -68,6 +69,12 @@ namespace MegapatchII_SCP_Regen_Exiled
                 while (true)
                 {
                     await Task.Delay(10000);
+                    if (cancellationToken.IsCancellationRequested)
+                    {
+                        ServerConsole.AddLog("[SCPHeal] calcellation requested");
+                        return;
+                    }
+
                     newpos = pl.GetPosition();
                     ServerConsole.AddLog($"heal att started. vals: pos same => {newpos == oldpos}, newpos => {newpos}, oldpos => {oldpos}");
 
